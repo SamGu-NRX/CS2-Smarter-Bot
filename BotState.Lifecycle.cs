@@ -19,6 +19,11 @@ public partial class BotState
         InitializeFovPatches();
         LoadCustomFov();
         RegisterListener<Listeners.OnMapEnd>(ClearFovObservers);
+        RegisterListener<Listeners.OnMapEnd>(_flashProjectiles.Clear);
+        RegisterListener<Listeners.OnEntityCreated>(OnFlashProjectileCreated);
+        RegisterListener<Listeners.OnEntityDeleted>(OnFlashProjectileDeleted);
+        foreach (var projectile in Utilities.FindAllEntitiesByDesignerName<CBaseEntity>("flashbang_projectile"))
+            OnFlashProjectileCreated(projectile);
         RegisterEventHandler<EventRoundStart>(OnRoundStart);
         RegisterEventHandler<EventPlayerHurt>(OnPlayerHurt);
         RegisterEventHandler<EventPlayerSpawn>(OnPlayerSpawn);

@@ -26,7 +26,8 @@ public partial class BotState
     private const float FlashFovHorizDeg = 110f;        // bot horizontal cone (full angle)
     private const float FlashFovVertDeg = 90f;         // bot vertical cone (full angle)
     private const float FlashMatchSlackSeconds = 0.25f;
-    private readonly Dictionary<uint, float> _flashThrownAt = new();   // flash entindex -> server time first seen
+    private readonly Dictionary<uint, CHandle<CBaseEntity>> _flashProjectiles = new();
+    private readonly Dictionary<uint, float> _flashThrownAt = new();   // flash handle (index + serial) -> server time first seen
     private readonly Dictionary<int, HashSet<uint>> _flashRolledByBot = new(); // bot idx  -> evaluated flashes
 
     // Per-(bot, flash) decision shared by the native blind hook and OnPlayerBlind
@@ -77,6 +78,35 @@ public partial class BotState
             p.PrintToConsole(msg);
         }
     }
+    private void OnFlashProjectileCreated(CEntityInstance entity)
+    {
+        if (entity.DesignerName != "flashbang_projectile") return;
+
+        uint handle = entity.EntityHandle.Raw;
+        _flashProjectiles[handle] = new CHandle<CBaseEntity>(handle);
+    }
+
+    private void OnFlashProjectileDeleted(CEntityInstance entity)
+    {
+        uint handle = entity.EntityHandle.Raw;
+        if (!_flashProjectiles.Remove(handle)) return;
+
+        if (_debugFlash)
+        {
+            foreach (var (key, decision) in _flashDecisions)
+            {
+                if (key.flash == handle)
+                    BroadcastDebug(
+                        $"[Smarter-Bot/Flash] flash#{handle} ended; bot#{key.bot} visible {(decision.LastSeen - decision.FirstSeen) * 1000f:F0}ms");
+            }
+        }
+
+        _flashThrownAt.Remove(handle);
+        foreach (var rolled in _flashRolledByBot.Values) rolled.Remove(handle);
+        _flashRejectLogged.RemoveWhere(key => key.flash == handle);
+        // Decisions remain until 2s after detonation for the blind hooks to match them.
+    }
+
     //---------------------------------------------------------------------------------------
     // Applies the matched avoidance decision to the Bot's visual blind state.
     private HookResult OnPlayerBlind(EventPlayerBlind @event, GameEventInfo info)
@@ -300,51 +330,28 @@ public partial class BotState
     //---------------------------------------------------------------------------------------
     // Pre-rolls flash avoidance when the bot first sees the projectile through FOV and LOS
     // The native blind hook reads the result before OnPlayerBlind consumes it
-    private void ProcessFlashbangAvoidance()
+    private void ProcessFlashbangAvoidance(List<CCSPlayerController> players)
     {
         if (_scratchEye == null) return;
 
         float now = Server.CurrentTime;
 
-        var live = new List<(uint idx, Vector pos, float detonateAt)>();
-        foreach (var ent in Utilities.FindAllEntitiesByDesignerName<CBaseEntity>("flashbang_projectile"))
+        var live = new List<(uint handle, Vector pos, float detonateAt)>();
+        foreach (var (handle, projectile) in _flashProjectiles)
         {
-            if (!ent.IsValid) continue;
+            var ent = projectile.Value;
+            if (ent == null || !ent.IsValid) continue;
             var pos = ent.AbsOrigin;
             if (pos == null) continue;
 
-            uint eidx = ent.Index;
-            bool isNew = !_flashThrownAt.ContainsKey(eidx);
+            bool isNew = !_flashThrownAt.ContainsKey(handle);
             if (isNew)
             {
-                _flashThrownAt[eidx] = now;
+                _flashThrownAt[handle] = now;
                 if (_debugFlash)
-                    BroadcastDebug($"[Smarter-Bot/Flash] new flash#{eidx} at ({pos.X:F0},{pos.Y:F0},{pos.Z:F0}) fuse={FlashFuseSeconds:F2}s");
+                    BroadcastDebug($"[Smarter-Bot/Flash] new flash#{handle} at ({pos.X:F0},{pos.Y:F0},{pos.Z:F0}) fuse={FlashFuseSeconds:F2}s");
             }
-            live.Add((eidx, pos, _flashThrownAt[eidx] + FlashFuseSeconds));
-        }
-
-        // Drop tracking for flashes that no longer exist (detonated / round end). Decisions
-        // linger for 2 seconds past detonation so OnPlayerBlind can still match them.
-        if (_flashThrownAt.Count > live.Count)
-        {
-            var alive = new HashSet<uint>(live.Select(f => f.idx));
-            var stale = _flashThrownAt.Keys.Where(k => !alive.Contains(k)).ToList();
-            foreach (var k in stale)
-            {
-                if (_debugFlash)
-                {
-                    foreach (var key in _flashDecisions.Keys.Where(p => p.flash == k).ToList())
-                    {
-                        var d = _flashDecisions[key];
-                        BroadcastDebug(
-                            $"[Smarter-Bot/Flash] flash#{k} ended; bot#{key.bot} visible {(d.LastSeen - d.FirstSeen) * 1000f:F0}ms");
-                    }
-                }
-                _flashThrownAt.Remove(k);
-                foreach (var s in _flashRolledByBot.Values) s.Remove(k);
-                _flashRejectLogged.RemoveWhere(p => p.flash == k);
-            }
+            live.Add((handle, pos, _flashThrownAt[handle] + FlashFuseSeconds));
         }
 
         // Expire stale decisions (2s past their detonation) so we don't leak across rounds.
@@ -358,7 +365,7 @@ public partial class BotState
 
         if (live.Count == 0) return;
 
-        foreach (var bot in Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller"))
+        foreach (var bot in players)
         {
             if (!bot.IsValid || !bot.IsBot) continue;
             if (bot.HasBeenControlledByPlayerThisRound) continue;
@@ -379,6 +386,8 @@ public partial class BotState
             foreach (var (fidx, fpos, detonateAt) in live)
             {
                 if (now > detonateAt) continue;
+                // A committed roll only needs more visibility samples for debug duration.
+                if (!_debugFlash && rolled.Contains(fidx)) continue;
 
                 bool inFov = IsInFov(pawn, fpos, FlashFovHorizDeg, FlashFovVertDeg,
                                      out float dYaw, out float dPit);
@@ -502,7 +511,6 @@ public partial class BotState
     // Clears flashbang state owned by the completed round.
     private void ResetFlashbangRoundState()
     {
-        // Flash entity indices may be reused after a round transition.
         _flashThrownAt.Clear();
         _flashRolledByBot.Clear();
         _flashDecisions.Clear();

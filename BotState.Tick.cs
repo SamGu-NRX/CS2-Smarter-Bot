@@ -9,10 +9,11 @@ public partial class BotState
     // Runs bot modules in their original order using one controller traversal.
     private void OnTick()
     {
-        ProcessFlashbangAvoidance();
+        var players = Utilities.GetPlayers();
+        ProcessFlashbangAvoidance(players);
         ExpireReveals(Server.CurrentTime);
 
-        foreach (var player in Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller"))
+        foreach (var player in players)
         {
             if (!player.IsValid || !player.IsBot)
                 continue;
