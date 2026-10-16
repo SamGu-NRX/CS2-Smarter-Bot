@@ -9,13 +9,13 @@ public partial class BotState
     // Runs bot modules in their original order using one controller traversal.
     private void OnTick()
     {
-        var players = Utilities.GetPlayers();
-        ProcessFlashbangAvoidance(players);
+        ProcessFlashbangAvoidance();
         ExpireReveals(Server.CurrentTime);
 
-        foreach (var player in players)
+        for (int slot = 0; slot < Server.MaxPlayers; slot++)
         {
-            if (!player.IsValid || !player.IsBot)
+            var player = Utilities.GetPlayerFromSlot(slot);
+            if (player == null || !player.IsValid || !player.IsBot)
                 continue;
 
             var pawn = player.PlayerPawn.Value;
