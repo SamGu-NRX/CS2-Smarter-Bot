@@ -12,7 +12,9 @@ public partial class BotState
         ProcessFlashbangAvoidance();
         ExpireReveals(Server.CurrentTime);
 
-        for (int slot = 0; slot < Server.MaxPlayers; slot++)
+        // Server.MaxPlayers can cache the main menu's one-player limit.
+        int maxPlayers = NativeAPI.GetMaxClients();
+        for (int slot = 0; slot < maxPlayers; slot++)
         {
             var player = Utilities.GetPlayerFromSlot(slot);
             if (player == null || !player.IsValid || !player.IsBot)
