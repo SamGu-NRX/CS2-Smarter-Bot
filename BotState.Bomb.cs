@@ -10,6 +10,84 @@ namespace BotState;
 
 public partial class BotState
 {
+    private int _bombCarrierSlot = -1;
+    private bool _bombCarrierSeedPending;
+
+    private bool SeedBombCarrierFromInventory()
+    {
+        foreach (var player in Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller"))
+        {
+            if (!player.IsValid)
+                continue;
+
+            var weapons = player.PlayerPawn?.Value?.WeaponServices?.MyWeapons;
+            if (weapons == null)
+                continue;
+
+            for (int i = 0, count = weapons.Count; i < count; i++)
+            {
+                var weapon = weapons[i].Value;
+                if (weapon != null && weapon.IsValid && weapon.DesignerName == "weapon_c4")
+                {
+                    _bombCarrierSlot = player.Slot;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private HookResult OnPlayerGivenC4(EventPlayerGivenC4 @event, GameEventInfo info)
+    {
+        var player = @event.Userid;
+        if (player != null && player.IsValid)
+            _bombCarrierSlot = player.Slot;
+        return HookResult.Continue;
+    }
+
+    private HookResult OnBombPickup(EventBombPickup @event, GameEventInfo info)
+    {
+        var player = @event.Userid;
+        if (player != null && player.IsValid)
+            _bombCarrierSlot = player.Slot;
+        return HookResult.Continue;
+    }
+
+    private HookResult OnBombDropped(EventBombDropped @event, GameEventInfo info)
+    {
+        ClearBombCarrier(@event.Userid);
+        return HookResult.Continue;
+    }
+
+    // Item events also cover C4 grants and removals outside a ground pickup/drop.
+    private HookResult OnItemPickup(EventItemPickup @event, GameEventInfo info)
+    {
+        var player = @event.Userid;
+        if (@event.Item == "c4" && player != null && player.IsValid)
+            _bombCarrierSlot = player.Slot;
+        return HookResult.Continue;
+    }
+
+    private HookResult OnItemRemove(EventItemRemove @event, GameEventInfo info)
+    {
+        if (@event.Item == "c4")
+            ClearBombCarrier(@event.Userid);
+        return HookResult.Continue;
+    }
+
+    private HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
+    {
+        ClearBombCarrier(@event.Userid);
+        return HookResult.Continue;
+    }
+
+    private void ClearBombCarrier(CCSPlayerController? player)
+    {
+        if (player != null && player.Slot == _bombCarrierSlot)
+            _bombCarrierSlot = -1;
+    }
+
     private const ulong UseButtonMask = (ulong)PlayerButtons.Use;
     private const float FakeDefuseHoldMinSeconds = 0.1f;
     private const float FakeDefuseHoldMaxSeconds = 0.8f;
@@ -48,12 +126,13 @@ public partial class BotState
         return HookResult.Continue;
     }
 
-    // Makes non-possessed Bots hurry once the bomb has been planted.
+    // Hurries only CTs for the retake; Ts keep native post-plant site defense.
     private HookResult OnBombPlanted(EventBombPlanted @event, GameEventInfo info)
     {
+        _bombCarrierSlot = -1;
         foreach (var player in Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller"))
         {
-            if (!player.IsValid || !player.IsBot)
+            if (!player.IsValid || !player.IsBot || player.TeamNum != (byte)CsTeam.CounterTerrorist)
                 continue;
 
             var pawn = player.PlayerPawn.Value;

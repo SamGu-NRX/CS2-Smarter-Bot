@@ -19,11 +19,19 @@ public partial class BotState
         InitializeFovPatches();
         LoadCustomFov();
         RegisterListener<Listeners.OnMapEnd>(ClearFovObservers);
+        RegisterEventHandler<EventRoundPrestart>(OnRoundPrestart);
         RegisterEventHandler<EventRoundStart>(OnRoundStart);
         RegisterEventHandler<EventPlayerHurt>(OnPlayerHurt);
         RegisterEventHandler<EventPlayerSpawn>(OnPlayerSpawn);
         RegisterEventHandler<EventRoundFreezeEnd>(OnRoundFreezeEnd);
         RegisterEventHandler<EventPlayerBlind>(OnPlayerBlind);
+        RegisterEventHandler<EventPlayerGivenC4>(OnPlayerGivenC4);
+        RegisterEventHandler<EventBombPickup>(OnBombPickup);
+        RegisterEventHandler<EventBombDropped>(OnBombDropped);
+        RegisterEventHandler<EventItemPickup>(OnItemPickup);
+        RegisterEventHandler<EventItemRemove>(OnItemRemove);
+        // Resolve the carrier before disconnect invalidates its controller.
+        RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect, HookMode.Pre);
         RegisterEventHandler<EventBombPlanted>(OnBombPlanted);
         RegisterEventHandler<EventBombBegindefuse>(OnBombBeginDefuse);
         RegisterEventHandler<EventBombAbortdefuse>(OnBombAbortDefuse);
@@ -36,6 +44,11 @@ public partial class BotState
         RegisterListener<Listeners.OnEntityCreated>(InvalidateFlashEntities);
         RegisterListener<Listeners.OnEntitySpawned>(InvalidateFlashEntities);
         RegisterListener<Listeners.OnEntityDeleted>(InvalidateFlashEntities);
+        RegisterListener<Listeners.OnMapStart>(_ =>
+        {
+            _bombCarrierSlot = -1;
+            _bombCarrierSeedPending = true;
+        });
         RegisterListener<Listeners.OnMapStart>(_ => ClearFlashEntities());
         RegisterListener<Listeners.OnMapEnd>(ClearFlashEntities);
         RegisterListener<Listeners.OnTick>(OnTick);
@@ -45,6 +58,7 @@ public partial class BotState
             ReequipGunForActiveBots,
             CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
         StartRushAntennaPublisher();
+        _bombCarrierSeedPending = !SeedBombCarrierFromInventory();
     }
 
     // Resolves capabilities supplied by plugins after every plugin has loaded
@@ -103,6 +117,13 @@ public partial class BotState
         return HookResult.Continue;
     }
     //---------------------------------------------------------------------------------------
+    // round_prestart fires before player_given_c4, so the later assignment survives.
+    private HookResult OnRoundPrestart(EventRoundPrestart @event, GameEventInfo info)
+    {
+        _bombCarrierSlot = -1;
+        return HookResult.Continue;
+    }
+
     // Clears per-round state and releases elimination knife locks
     private HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
@@ -124,6 +145,7 @@ public partial class BotState
     // Detects elimination while explicitly excluding the current death victim
     private HookResult OnPlayerDeath(EventPlayerDeath @event, GameEventInfo info)
     {
+        ClearBombCarrier(@event.Userid);
         // Deathmatch is free-for-all even though the engine still reports
         // temporary T/CT team numbers. Do not treat the last bot on one side
         // as a round elimination and lock the other bots to their knives.

@@ -9,6 +9,12 @@ public partial class BotState
     // Runs bot modules in their original order using one controller traversal.
     private void OnTick()
     {
+        if (_bombCarrierSeedPending)
+        {
+            _bombCarrierSeedPending = false;
+            SeedBombCarrierFromInventory();
+        }
+
         ProcessFlashbangAvoidance();
         ExpireReveals(Server.CurrentTime);
 
@@ -37,7 +43,7 @@ public partial class BotState
             // Door Stuck Fix
             bool inDoorCooldown = _doorEventCooldown.TryGetValue(idx, out float doorCooldownEnd) && now < doorCooldownEnd;
 
-            UpdateBotBehavior(bot, now);
+            UpdateBotBehavior(bot, now, slot == _bombCarrierSlot);
             bool curIsAttacking = UpdateBotCombat(player, pawn, bot, idx);
             if (!UpdateBotMovement(pawn, bot, idx, curIsAttacking, inDoorCooldown))
                 continue;

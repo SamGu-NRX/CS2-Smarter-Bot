@@ -42,7 +42,7 @@ public partial class BotState
     }
 
     // Keeps native awareness and reaction timers at the existing per-tick values.
-    private static void UpdateBotBehavior(CCSBot bot, float now)
+    private static void UpdateBotBehavior(CCSBot bot, float now, bool isBombCarrier)
     {
         ref bool isSleeping = ref bot.IsSleeping;
         isSleeping = false;
@@ -116,6 +116,10 @@ public partial class BotState
 
         ref float sawEnemySniperTimescale = ref sawEnemySniperTimer.Timescale;
         sawEnemySniperTimescale = 1.0f;
+        // Let the C4 carrier yield to teammates instead of leading the push.
+        if (isBombCarrier)
+            return;
+
         // Teammate Stuck Fix
         ref bool IsWaitingBehindFriend = ref bot.IsWaitingBehindFriend;
         IsWaitingBehindFriend = false;
