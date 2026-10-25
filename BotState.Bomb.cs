@@ -130,13 +130,13 @@ public partial class BotState
         return HookResult.Continue;
     }
 
-    // Hurries only CTs for the retake; Ts keep native post-plant site defense.
+    // Makes non-possessed Bots hurry once the bomb has been planted.
     private HookResult OnBombPlanted(EventBombPlanted @event, GameEventInfo info)
     {
         _bombCarrierSlot = -1;
         foreach (var player in Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller"))
         {
-            if (!player.IsValid || !player.IsBot || player.TeamNum != (byte)CsTeam.CounterTerrorist)
+            if (!player.IsValid || !player.IsBot)
                 continue;
 
             var pawn = player.PlayerPawn.Value;
