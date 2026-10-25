@@ -66,7 +66,8 @@ public partial class BotState
             return;
 
         if (UpdateFireEscape(player, pawn, bot, idx, now)
-            || UpdateReposition(player, pawn, bot, idx, now, curIsAttacking))
+            || UpdateReposition(player, pawn, bot, idx, now, curIsAttacking)
+            || UpdateCornerUnstick(player, pawn, bot, idx, now, curIsAttacking))
             return;
         HoldAtSmokeEdge(player, pawn, bot, idx, now, curIsAttacking);
     }
@@ -98,6 +99,9 @@ public partial class BotState
         _pendingRepositions.Remove(idx);
         _repositionMoves.Remove(idx);
         _nextRepositionAt.Remove(idx);
+        _lastSmokeHold.Remove(idx);
+        _progress.Remove(idx);
+        _nudges.Remove(idx);
     }
 
     private HookResult OnBehaviorBombPlanted(EventBombPlanted @event, GameEventInfo info)
@@ -114,6 +118,7 @@ public partial class BotState
         ResetFireEscapeState();
         ResetSmokeHoldState();
         ResetRepositionState();
+        ResetCornerUnstickState();
     }
 
     // Sets horizontal velocity along a unit direction and keeps vertical speed, the same way the

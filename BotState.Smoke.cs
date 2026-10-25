@@ -38,6 +38,9 @@ public partial class BotState
     private readonly Dictionary<int, ActiveSmoke> _activeSmokes = new();
     // (bot controller index, smoke entity index) -> when the bot was first held at that smoke.
     private readonly Dictionary<(int Bot, int Smoke), float> _smokeHoldStart = new();
+    // Bot controller index -> last time it was held at a smoke edge, so the unstick check
+    // does not mistake the hold for a stuck bot.
+    private readonly Dictionary<int, float> _lastSmokeHold = new();
 
     private HookResult OnSmokeDetonate(EventSmokegrenadeDetonate @event, GameEventInfo info)
     {
@@ -121,6 +124,7 @@ public partial class BotState
             // Keep the sideways part of the motion so the bot can still walk around the smoke.
             pawn.AbsVelocity.X -= (inward + SmokeEdgePushBack) * inX;
             pawn.AbsVelocity.Y -= (inward + SmokeEdgePushBack) * inY;
+            _lastSmokeHold[idx] = now;
             if (expired is int stale)
                 RemoveSmoke(stale);
             return true;
@@ -135,5 +139,6 @@ public partial class BotState
     {
         _activeSmokes.Clear();
         _smokeHoldStart.Clear();
+        _lastSmokeHold.Clear();
     }
 }
