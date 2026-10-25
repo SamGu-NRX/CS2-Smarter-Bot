@@ -50,6 +50,7 @@ public partial class BotState
 
             RecoverStuckBot(player, pawn, bot, idx, now, curIsAttacking);
             ApplyMapMovementFix(pawn, bot);
+            UpdateBotBehaviorFixes(player, pawn, bot, idx, now, curIsAttacking);
         }
     }
 }
