@@ -13,11 +13,15 @@ public partial class BotState
     private int _bombCarrierSlot = -1;
     private bool _bombCarrierSeedPending;
 
+    // Walks player slots like OnTick does, because that path is safe at the main menu.
+    // FindAllEntitiesByDesignerName is not: before a map loads it throws, and CounterStrikeSharp
+    // caches that failure for every plugin until the game restarts.
     private bool SeedBombCarrierFromInventory()
     {
-        foreach (var player in Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller"))
+        for (int slot = 0, maxPlayers = NativeAPI.GetMaxClients(); slot < maxPlayers; slot++)
         {
-            if (!player.IsValid)
+            var player = Utilities.GetPlayerFromSlot(slot);
+            if (player == null || !player.IsValid)
                 continue;
 
             var weapons = player.PlayerPawn?.Value?.WeaponServices?.MyWeapons;

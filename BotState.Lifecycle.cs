@@ -58,7 +58,8 @@ public partial class BotState
             ReequipGunForActiveBots,
             CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
         StartRushAntennaPublisher();
-        _bombCarrierSeedPending = !SeedBombCarrierFromInventory();
+        // Seeded on the first tick: a game launch loads plugins before any map exists.
+        _bombCarrierSeedPending = true;
     }
 
     // Resolves capabilities supplied by plugins after every plugin has loaded
