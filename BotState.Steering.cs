@@ -43,6 +43,8 @@ public partial class BotState
         RegisterEventHandler<EventInfernoStartburn>(OnInfernoStartburn);
         RegisterEventHandler<EventInfernoExpire>(OnInfernoExpire);
         RegisterEventHandler<EventInfernoExtinguish>(OnInfernoExtinguish);
+        RegisterEventHandler<EventSmokegrenadeDetonate>(OnSmokeDetonate);
+        RegisterEventHandler<EventSmokegrenadeExpired>(OnSmokeExpired);
         RegisterEventHandler<EventBombPlanted>(OnBehaviorBombPlanted);
         RegisterEventHandler<EventRoundStart>(OnBehaviorRoundStart);
         RegisterEventHandler<EventPlayerSpawn>(OnBehaviorPlayerSpawn);
@@ -62,7 +64,9 @@ public partial class BotState
         if (_botController != null && BotControllerBridge.IsViewControlled(_botController, player.Slot))
             return;
 
-        UpdateFireEscape(player, pawn, bot, idx, now);
+        if (UpdateFireEscape(player, pawn, bot, idx, now))
+            return;
+        HoldAtSmokeEdge(player, pawn, bot, idx, now, curIsAttacking);
     }
 
     private HookResult OnBehaviorRoundStart(EventRoundStart @event, GameEventInfo info)
@@ -85,6 +89,8 @@ public partial class BotState
         _lastBurnTime.Remove(idx);
         _trails.Remove(idx);
         _fireEscapes.Remove(idx);
+        foreach (var key in _smokeHoldStart.Keys.Where(k => k.Bot == idx).ToList())
+            _smokeHoldStart.Remove(key);
     }
 
     private HookResult OnBehaviorBombPlanted(EventBombPlanted @event, GameEventInfo info)
@@ -99,6 +105,7 @@ public partial class BotState
     {
         _plantedBombPos = null;
         ResetFireEscapeState();
+        ResetSmokeHoldState();
     }
 
     // Sets horizontal velocity along a unit direction and keeps vertical speed, the same way the
