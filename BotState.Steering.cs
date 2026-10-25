@@ -46,6 +46,7 @@ public partial class BotState
         RegisterEventHandler<EventSmokegrenadeDetonate>(OnSmokeDetonate);
         RegisterEventHandler<EventSmokegrenadeExpired>(OnSmokeExpired);
         RegisterEventHandler<EventBombPlanted>(OnBehaviorBombPlanted);
+        RegisterEventHandler<EventPlayerDeath>(OnRepositionPlayerDeath);
         RegisterEventHandler<EventRoundStart>(OnBehaviorRoundStart);
         RegisterEventHandler<EventPlayerSpawn>(OnBehaviorPlayerSpawn);
         RegisterListener<Listeners.OnMapStart>(_ => ResetBotBehaviorFixes());
@@ -64,7 +65,8 @@ public partial class BotState
         if (_botController != null && BotControllerBridge.IsViewControlled(_botController, player.Slot))
             return;
 
-        if (UpdateFireEscape(player, pawn, bot, idx, now))
+        if (UpdateFireEscape(player, pawn, bot, idx, now)
+            || UpdateReposition(player, pawn, bot, idx, now, curIsAttacking))
             return;
         HoldAtSmokeEdge(player, pawn, bot, idx, now, curIsAttacking);
     }
@@ -91,6 +93,11 @@ public partial class BotState
         _fireEscapes.Remove(idx);
         foreach (var key in _smokeHoldStart.Keys.Where(k => k.Bot == idx).ToList())
             _smokeHoldStart.Remove(key);
+        _stillSince.Remove(idx);
+        _spottedLastTick.Remove(idx);
+        _pendingRepositions.Remove(idx);
+        _repositionMoves.Remove(idx);
+        _nextRepositionAt.Remove(idx);
     }
 
     private HookResult OnBehaviorBombPlanted(EventBombPlanted @event, GameEventInfo info)
@@ -106,6 +113,7 @@ public partial class BotState
         _plantedBombPos = null;
         ResetFireEscapeState();
         ResetSmokeHoldState();
+        ResetRepositionState();
     }
 
     // Sets horizontal velocity along a unit direction and keeps vertical speed, the same way the
