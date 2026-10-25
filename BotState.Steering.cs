@@ -65,6 +65,7 @@ public partial class BotState
         if (_botController != null && BotControllerBridge.IsViewControlled(_botController, player.Slot))
             return;
 
+        UpdateCarrierWatchdog(player, pawn, bot, now);
         if (UpdateFireEscape(player, pawn, bot, idx, now)
             || UpdateReposition(player, pawn, bot, idx, now, curIsAttacking)
             || UpdateCornerUnstick(player, pawn, bot, idx, now, curIsAttacking))
@@ -119,6 +120,7 @@ public partial class BotState
         ResetSmokeHoldState();
         ResetRepositionState();
         ResetCornerUnstickState();
+        ResetCarrierWatchdogState();
     }
 
     // Sets horizontal velocity along a unit direction and keeps vertical speed, the same way the
