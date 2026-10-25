@@ -52,6 +52,7 @@ public partial class BotState
         RegisterListener<Listeners.OnMapStart>(_ => ClearFlashEntities());
         RegisterListener<Listeners.OnMapEnd>(ClearFlashEntities);
         RegisterListener<Listeners.OnTick>(OnTick);
+        RegisterBotBehaviorFixes();
         // Prevent bots from holding their knives when there're enemies alive
         _gunReequipTimer = AddTimer(
             1.0f,
